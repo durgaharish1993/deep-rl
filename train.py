@@ -13,7 +13,7 @@ import torch.optim as optim
 from torch.utils.tensorboard import SummaryWriter
 
 
-DEFAULT_ENV_NAME = "PongNoFrameskip-V4"
+DEFAULT_ENV_NAME = "ALE/Pong-v5"
 MEAN_REWARD_BOUND = 19.0 
 
 # Bellman Approximation 
@@ -155,6 +155,30 @@ if __name__ == '__main__':
             writer.add_scalar("speed", speed, frame_idx)
             writer.add_scalar("reward_100", m_reward, frame_idx)
             writer.add_scalar("reward", reward, frame_idx)
+
+            if best_m_reward is None or best_m_reward < m_reward:
+                torch.save(net.state_dict(), args.env + "=best_%.0f.dat" % m_reward)
+
+                if best_m_reward is not None:
+                    print("Best reward updated %.3f -> %.3f" % (best_m_reward, m_reward))
+                best_m_reward = m_reward 
+                if m_reward > MEAN_REWARD_BOUND:
+                    print("Solved in %d frames!" % frame_idx)
+                    break 
+            
+            if len(buffer) < REPLAY_START_SIZE:
+                continue
+
+            if frame_idx % SYNC_TARGET_FRAMES == 0:
+                tgt_net.load_state_dict(net.state_dict())
+
+            optimizer.zero_grad()
+            batch = buffer.sample(BATCH_SIZE)
+            loss_t = calc_loss(batch=batch, net=net,tgt_net=tgt_net, device=device)
+            loss_t.backward()
+            optimizer.step()
+
+
 
             
 
